@@ -51,6 +51,9 @@ class ConversationToolLoop:
 
     async def run(self, user_text: str) -> ToolLoopResult:
         """Process user text through the model and existing baby tools."""
+        if self.speech_sink is not None:
+            self.speech_sink.drain()
+
         turn = 0
         tool_outputs: list[dict[str, Any]] | None = None
         final_text = ""

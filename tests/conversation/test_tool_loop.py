@@ -93,10 +93,23 @@ async def test_tool_loop_dispatches_tool_and_feeds_output_back_to_brain() -> Non
 async def test_tool_loop_uses_speech_sink_when_tool_call_has_no_final_text() -> None:
     """Captured speak-tool text becomes the Gemini response fallback."""
     sink = GeminiSpeechSink()
-    await sink.speak("Five plus ten is fifteen.")
-    llm = FakeLLM([[]])
+    llm = FakeLLM(
+        [
+            [
+                {
+                    "type": "tool_call",
+                    "tool_call": {
+                        "id": "call_1",
+                        "function": {"name": "speak", "arguments": '{"text":"Five plus ten is fifteen."}'},
+                    },
+                }
+            ],
+            [],
+        ]
+    )
 
     async def dispatch_tool_call(name: str, args: str, deps: object) -> dict[str, Any]:
+        await sink.speak("Five plus ten is fifteen.")
         return {"status": "success"}
 
     loop = ConversationToolLoop(
@@ -147,3 +160,27 @@ async def test_tool_loop_prefers_captured_speech_over_generic_follow_up_text() -
     result = await loop.run("what is five plus ten")
 
     assert result.text == "Five plus ten is fifteen."
+
+
+@pytest.mark.asyncio
+async def test_tool_loop_discards_stale_speech_before_current_utterance() -> None:
+    """Stale speech captured before this run cannot replace the current answer."""
+    sink = GeminiSpeechSink()
+    await sink.speak("Old lullaby text.")
+    llm = FakeLLM([[{"type": "text", "content": "Current answer."}]])
+
+    async def dispatch_tool_call(name: str, args: str, deps: object) -> dict[str, Any]:
+        return {"status": "success"}
+
+    loop = ConversationToolLoop(
+        llm=llm,
+        deps=object(),
+        tool_specs=[],
+        dispatch_tool_call=dispatch_tool_call,
+        speech_sink=sink,
+    )
+
+    result = await loop.run("current question")
+
+    assert result.text == "Current answer."
+    assert sink.messages == []

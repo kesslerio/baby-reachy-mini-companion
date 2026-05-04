@@ -1,6 +1,7 @@
 from __future__ import annotations
 import time
 import base64
+import asyncio
 import logging
 from typing import Any, Final, Tuple, Literal
 
@@ -83,12 +84,12 @@ class GeminiLiveSessionHandler(LocalSessionHandler):
     ) -> None:
         """Initialize Gemini mode while preserving the local handler contract."""
         super().__init__(deps, llm_url, llm_model, enable_signal)
-        self.deps.speak_func = self._capture_speech_tool
+        self.deps.speak_func = self._ignore_background_speech_tool
         self.client: Any = None
         self.connection: Any = None
         self.types: Any = None
-        self.speech_sink = GeminiSpeechSink()
         self.tool_loop: ConversationToolLoop | None = None
+        self._tool_loop_lock = asyncio.Lock()
         self._assistant_transcript_parts: list[str] = []
         self._shutdown_requested = False
 
@@ -99,8 +100,7 @@ class GeminiLiveSessionHandler(LocalSessionHandler):
     async def start_up(self) -> None:
         """Start Gemini Live and lightweight baby companion services."""
         if not config.GEMINI_API_KEY:
-            logger.error("GEMINI_API_KEY is required when VOICE_FRONTEND=gemini_live")
-            return
+            raise ValueError("GEMINI_API_KEY is required when VOICE_FRONTEND=gemini_live")
 
         from google import genai
         from google.genai import types
@@ -121,7 +121,6 @@ class GeminiLiveSessionHandler(LocalSessionHandler):
             deps=self.deps,
             tool_specs=self.tool_specs,
             dispatch_tool_call=dispatch_tool_call,
-            speech_sink=self.speech_sink,
         )
 
         await self._start_lightweight_services()
@@ -247,7 +246,7 @@ class GeminiLiveSessionHandler(LocalSessionHandler):
             else:
                 query = str(args.get("query", "")).strip()
                 logger.info("Baby tool loop started chars=%d", len(query))
-                result = await self.tool_loop.run(query)
+                result = await self._run_tool_loop_for_utterance(query)
                 answer = result.text
                 logger.info(
                     "Baby tool loop finished elapsedMs=%d tools=%s",
@@ -260,8 +259,25 @@ class GeminiLiveSessionHandler(LocalSessionHandler):
         if self.connection is not None and responses:
             await self.connection.send_tool_response(function_responses=responses)
 
-    async def _capture_speech_tool(self, text: str) -> None:
-        await self.speech_sink.speak(text)
+    async def _run_tool_loop_for_utterance(self, query: str):
+        tool_loop = self.tool_loop
+        if tool_loop is None:
+            raise RuntimeError("Gemini Live tool loop is not initialized")
+
+        async with self._tool_loop_lock:
+            speech_sink = GeminiSpeechSink()
+            previous_speak_func = self.deps.speak_func
+            previous_speech_sink = tool_loop.speech_sink
+            self.deps.speak_func = speech_sink.speak
+            tool_loop.speech_sink = speech_sink
+            try:
+                return await tool_loop.run(query)
+            finally:
+                self.deps.speak_func = previous_speak_func
+                tool_loop.speech_sink = previous_speech_sink
+
+    async def _ignore_background_speech_tool(self, text: str) -> None:
+        logger.info("Ignoring background speak tool text while Gemini owns voice output: %d chars", len(text))
 
     async def _start_lightweight_services(self) -> None:
         import asyncio
