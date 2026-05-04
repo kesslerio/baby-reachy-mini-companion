@@ -1,5 +1,6 @@
 """Entrypoint for the Reachy Mini conversation app."""
 
+import os
 import sys
 import time
 import asyncio
@@ -18,6 +19,7 @@ from reachy_mini_conversation_app.utils import (
     handle_vision_stuff,
     log_connection_troubleshooting,
 )
+from reachy_mini_conversation_app.config import config
 
 
 def main() -> None:
@@ -88,16 +90,24 @@ def run(
         vision_threat_status=vision_threat_status,
     )
 
+    _load_instance_voice_settings(instance_path)
+
     # Launch a standalone settings dashboard when --dashboard is passed
     if args.dashboard and settings_app is None:
         settings_app = FastAPI(title="Reachy Mini Settings")
         if instance_path is None:
             instance_path = str(Path.cwd())
 
-    from reachy_mini_conversation_app.local.handler import LocalSessionHandler
+    if config.VOICE_FRONTEND == "gemini_live":
+        from reachy_mini_conversation_app.gemini_live.handler import GeminiLiveSessionHandler
 
-    logger.info("Using Local LLM (fully local + Signal)")
-    handler: Any = LocalSessionHandler(deps)
+        logger.info("Using Gemini Live voice front-end with baby companion tool loop")
+        handler: Any = GeminiLiveSessionHandler(deps)
+    else:
+        from reachy_mini_conversation_app.local.handler import LocalSessionHandler
+
+        logger.info("Using Local LLM (fully local + Signal)")
+        handler = LocalSessionHandler(deps)
 
     # Headless mode: wire settings_app + instance_path to console LocalStream
     # Routes are registered in __init__ so the dashboard is ready immediately.
@@ -194,6 +204,37 @@ class ReachyMiniConversationApp(ReachyMiniApp):
             settings_app=self.settings_app,
             instance_path=instance_path,
         )
+
+
+def _load_instance_voice_settings(instance_path: Optional[str]) -> None:
+    """Load voice front-end settings before choosing the session handler."""
+    if not instance_path:
+        return
+
+    env_path = Path(instance_path) / ".env"
+    if not env_path.exists():
+        return
+
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(dotenv_path=str(env_path), override=True)
+    except Exception:
+        return
+
+    for key in (
+        "VOICE_FRONTEND",
+        "GEMINI_API_KEY",
+        "GEMINI_MODEL",
+        "GEMINI_VOICE",
+        "GEMINI_SYSTEM_INSTRUCTION",
+        "LOCAL_LLM_URL",
+        "LOCAL_LLM_MODEL",
+        "LOCAL_LLM_API_KEY",
+    ):
+        value = os.getenv(key)
+        if value is not None:
+            setattr(config, key, value.strip())
 
 
 if __name__ == "__main__":

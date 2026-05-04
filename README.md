@@ -193,9 +193,32 @@ The app connects to any **OpenAI-compatible** LLM server. By default it points t
 | `LOCAL_LLM_MODEL` | `ministral-3:3b` | Model name as known by your LLM server. Use a VL model (e.g. `qwen3-vl:4b`) for camera support. |
 | `LOCAL_LLM_API_KEY` | `ollama` | API key (Ollama ignores this; other servers may require a real key). |
 | `LOCAL_STT_MODEL` | `small.en` | Whisper model size (`tiny.en`, `small.en`, `medium.en`, `large-v3`). |
+| `VOICE_FRONTEND` | `local` | `local` keeps the fully local VAD/STT/TTS pipeline. `gemini_live` uses Gemini Live for voice while preserving this app's prompt, tool loop, and robot tools. |
+| `GEMINI_API_KEY` | — | Required only when `VOICE_FRONTEND=gemini_live`. |
+| `GEMINI_MODEL` | `gemini-3.1-flash-live-preview` | Gemini Live model used for the voice front-end. |
+| `GEMINI_VOICE` | `Kore` | Gemini Live voice name. |
 | `MIC_GAIN` | `1.0` | Digital gain for microphone input (e.g., `2.0` to double volume). |
 | `SIGNAL_USER_PHONE` | — | Your phone number (e.g., `+1234567890`) for remote alerts. |
 | `REACHY_MINI_CUSTOM_PROFILE` | `default` | Selects the personality profile. |
+
+#### Gemini Live voice front-end
+
+This fork can use Gemini Live as a low-latency voice front-end without replacing
+the baby companion brain or robot capability layer. Set:
+
+```bash
+VOICE_FRONTEND=gemini_live
+GEMINI_API_KEY=...
+LOCAL_LLM_URL=http://127.0.0.1:11435/v1
+LOCAL_LLM_MODEL=reachy-companion
+LOCAL_LLM_API_KEY=sidecar
+```
+
+In this mode Gemini Live handles microphone streaming, turn-taking,
+transcription, TTS, and audio playback. Each utterance is still routed through
+the baby companion's existing prompt, OpenAI-compatible LLM client, tool specs,
+and tool dispatcher. The physical actions and safety tools therefore remain the
+baby app's responsibility rather than Gemini's.
 
 #### Tested Models
 

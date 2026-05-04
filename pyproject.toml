@@ -52,6 +52,9 @@ reachy_mini_wireless = [
 local = [
   "reachy_mini_conversation_app[reachy_mini_wireless]",
 ]
+gemini_live = [
+  "google-genai>=1.52.0",
+]
 
 [dependency-groups]
 dev = [
