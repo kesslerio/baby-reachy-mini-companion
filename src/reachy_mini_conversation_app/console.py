@@ -23,6 +23,7 @@ from scipy.signal import resample
 from reachy_mini import ReachyMini
 from reachy_mini.media.media_manager import MediaBackend
 from reachy_mini_conversation_app.config import config
+from reachy_mini_conversation_app.media_runtime import MediaRuntime, MediaPreparationStatus, MediaRuntimeCoordinator
 from reachy_mini_conversation_app.headless_personality_ui import mount_personality_routes
 
 
@@ -52,6 +53,7 @@ class LocalStream:
         *,
         settings_app: Optional[FastAPI] = None,
         instance_path: Optional[str] = None,
+        media_runtime: MediaRuntime | None = None,
     ):
         """Initialize the stream with a local session handler and pipelines.
 
@@ -72,6 +74,8 @@ class LocalStream:
         self._start_event = threading.Event()
         self._pipeline_state = "configuring"  # "configuring" | "running" | "shutting_down"
         self._mic_device: Optional[int] = None  # SoundDevice index, None = use SDK media
+        self._media_runtime = media_runtime or MediaRuntimeCoordinator()
+        self._last_media_preparation: MediaPreparationStatus | None = None
 
         # Register dashboard routes immediately so the UI is available
         # while the robot and pipeline are still initializing.
@@ -293,7 +297,7 @@ class LocalStream:
         # GET /app_state -> configuring, running, or stopping
         @self._settings_app.get("/app_state")
         def _app_state() -> JSONResponse:
-            return JSONResponse({"state": self._pipeline_state})
+            return JSONResponse({"state": self._pipeline_state, "media": self._media_status_payload()})
 
         # GET /local_llm_settings -> current local LLM configuration
         @self._settings_app.get("/local_llm_settings")
@@ -355,6 +359,14 @@ class LocalStream:
                 raw = {}
             gain = float(raw.get("MIC_GAIN", 1.0))
             device = raw.get("MIC_DEVICE")
+            if device in (None, ""):
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "verdict": "sdk_audio",
+                        "message": "Reachy SDK audio selected. The robot microphone is used when the pipeline starts.",
+                    }
+                )
             if device is not None:
                 try:
                     device = int(device)
@@ -591,10 +603,7 @@ class LocalStream:
 
                 self._pipeline_state = "running"
 
-                # Start media (skip recording when using direct mic input)
-                if self._mic_device is None:
-                    self._robot.media.start_recording()
-                self._robot.media.start_playing()
+                self._prepare_and_start_media()
                 await asyncio.sleep(1)  # give pipelines time to start
 
                 self._tasks = [
@@ -653,6 +662,30 @@ class LocalStream:
             for task in self._tasks:
                 if not task.done():
                     loop.call_soon_threadsafe(task.cancel)
+
+    def _media_status_payload(self) -> dict[str, Any]:
+        """Return the most recent media-preparation status for dashboard diagnostics."""
+        status = self._last_media_preparation
+        if status is None:
+            return {"prepared": False}
+        return {
+            "prepared": True,
+            "ok": status.ok,
+            "daemon": [
+                {"url": result.url, "ok": result.ok, "detail": result.detail} for result in status.daemon_results
+            ],
+            "ipc": [
+                {"key": result.key, "kind": result.kind, "ok": result.ok, "detail": result.detail}
+                for result in status.ipc_results
+            ],
+        }
+
+    def _prepare_and_start_media(self) -> None:
+        """Prepare daemon/ALSA state and start SDK media in order."""
+        self._last_media_preparation = self._media_runtime.prepare_for_audio_start()
+        if self._mic_device is None:
+            self._robot.media.start_recording()
+        self._robot.media.start_playing()
 
     def clear_audio_queue(self) -> None:
         """Flush the player's appsrc to drop any queued audio immediately."""

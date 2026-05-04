@@ -252,6 +252,19 @@ def _load_instance_voice_settings(instance_path: Optional[str]) -> None:
         except ValueError:
             pass
 
+    for key in ("RELEASE_DAEMON_MEDIA", "CLEAN_STALE_ALSA_IPC"):
+        value = os.getenv(key)
+        if value is not None:
+            setattr(config, key, _parse_env_bool(value, default=getattr(config, key)))
+
+
+def _parse_env_bool(value: str, *, default: bool) -> bool:
+    """Parse environment booleans used after instance .env load."""
+    normalized = value.strip().lower()
+    if not normalized:
+        return default
+    return normalized in {"1", "true", "yes", "on"}
+
 
 if __name__ == "__main__":
     app = ReachyMiniConversationApp()

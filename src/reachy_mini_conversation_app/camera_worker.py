@@ -27,6 +27,7 @@ class CameraWorker:
 
         # Thread-safe frame storage
         self.latest_frame: NDArray[np.uint8] | None = None
+        self.last_frame_at: float | None = None
         self.frame_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -67,6 +68,7 @@ class CameraWorker:
                     # Thread-safe frame storage
                     with self.frame_lock:
                         self.latest_frame = frame
+                        self.last_frame_at = time.monotonic()
 
                 # Small sleep to prevent excessive CPU usage
                 time.sleep(0.04)

@@ -184,3 +184,43 @@ async def test_tool_loop_discards_stale_speech_before_current_utterance() -> Non
 
     assert result.text == "Current answer."
     assert sink.messages == []
+
+
+@pytest.mark.asyncio
+async def test_tool_loop_preserves_unavailable_camera_result_for_brain() -> None:
+    """Unavailable camera results stay visible to the model for grounded responses."""
+    llm = FakeLLM(
+        [
+            [
+                {
+                    "type": "tool_call",
+                    "tool_call": {
+                        "id": "call_camera",
+                        "function": {"name": "camera", "arguments": '{"question":"what do you see?"}'},
+                    },
+                }
+            ],
+            [{"type": "text", "content": "I cannot see right now because the camera frame is unavailable."}],
+        ]
+    )
+
+    async def dispatch_tool_call(name: str, args: str, deps: object) -> dict[str, Any]:
+        return {"success": False, "error": "Camera frame unavailable"}
+
+    loop = ConversationToolLoop(
+        llm=llm,
+        deps=object(),
+        tool_specs=[],
+        dispatch_tool_call=dispatch_tool_call,
+    )
+
+    result = await loop.run("what do you see?")
+
+    assert result.text == "I cannot see right now because the camera frame is unavailable."
+    assert llm.calls[1]["tool_outputs"] == [
+        {
+            "role": "tool",
+            "content": '{"success": false, "error": "Camera frame unavailable"}',
+            "tool_call_id": "call_camera",
+        }
+    ]

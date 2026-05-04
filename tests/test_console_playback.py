@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import threading
 from types import SimpleNamespace
 
 import numpy as np
@@ -11,8 +12,11 @@ class _FakeHandler:
     def __init__(self, output: tuple[int, np.ndarray]) -> None:
         self._clear_queue = None
         self.output = output
+        self.stop_event: threading.Event | None = None
 
     async def emit(self):
+        if self.stop_event is not None:
+            self.stop_event.set()
         return self.output
 
 
@@ -20,12 +24,15 @@ class _FakeMedia:
     def __init__(self, output_sample_rate: int = 0) -> None:
         self.pushed: list[np.ndarray] = []
         self.output_sample_rate = output_sample_rate
+        self.stop_event: threading.Event | None = None
 
     def get_output_audio_samplerate(self) -> int:
         return self.output_sample_rate
 
     def push_audio_sample(self, audio_frame: np.ndarray) -> None:
         self.pushed.append(audio_frame)
+        if self.stop_event is not None:
+            self.stop_event.set()
 
 
 def test_play_loop_tolerates_unavailable_output_sample_rate() -> None:
@@ -38,13 +45,7 @@ def test_play_loop_tolerates_unavailable_output_sample_rate() -> None:
         robot = SimpleNamespace(media=media)
         stream = LocalStream(handler, robot)
 
-        original_push = media.push_audio_sample
-
-        def push_and_stop(audio_frame: np.ndarray) -> None:
-            original_push(audio_frame)
-            stream._stop_event.set()
-
-        media.push_audio_sample = push_and_stop
+        media.stop_event = stream._stop_event
 
         await stream.play_loop()
 
@@ -63,13 +64,7 @@ def test_play_loop_drops_invalid_input_sample_rate() -> None:
         media = _FakeMedia()
         robot = SimpleNamespace(media=media)
         stream = LocalStream(handler, robot)
-        original_emit = handler.emit
-
-        async def emit_once():
-            stream._stop_event.set()
-            return await original_emit()
-
-        handler.emit = emit_once
+        handler.stop_event = stream._stop_event
 
         await stream.play_loop()
 
@@ -86,13 +81,7 @@ def test_play_loop_drops_tiny_resample_frames() -> None:
         media = _FakeMedia(output_sample_rate=16_000)
         robot = SimpleNamespace(media=media)
         stream = LocalStream(handler, robot)
-        original_emit = handler.emit
-
-        async def emit_once():
-            stream._stop_event.set()
-            return await original_emit()
-
-        handler.emit = emit_once
+        handler.stop_event = stream._stop_event
 
         await stream.play_loop()
 

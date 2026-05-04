@@ -6,6 +6,14 @@ from dotenv import find_dotenv, load_dotenv
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_bool(value: str, *, default: bool = False) -> bool:
+    """Parse common environment boolean values."""
+    normalized = value.strip().lower()
+    if not normalized:
+        return default
+    return normalized in {"1", "true", "yes", "on"}
+
 # Locate .env file (search upward from current working directory)
 dotenv_path = find_dotenv(usecwd=True)
 
@@ -44,6 +52,8 @@ class Config:
 
     # Audio Settings
     MIC_GAIN = float(os.getenv("MIC_GAIN", "1.0"))
+    RELEASE_DAEMON_MEDIA = _parse_bool(os.getenv("RELEASE_DAEMON_MEDIA", "true"), default=True)
+    CLEAN_STALE_ALSA_IPC = _parse_bool(os.getenv("CLEAN_STALE_ALSA_IPC", "true"), default=True)
 
     # Feature Flags (all enabled by default, toggled via dashboard per session)
     FEATURE_CRY_DETECTION = True
