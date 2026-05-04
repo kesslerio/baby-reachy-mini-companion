@@ -132,7 +132,7 @@ class MediaRuntimeCoordinator:
 
         results: list[IpcCleanupResult] = []
         results.extend(self._cleanup_ipc_kind(kind="shm", ipcs_arg="-m", ipcrm_arg="-m"))
-        results.extend(self._cleanup_ipc_kind(kind="sem", ipcs_arg="-s", ipcrm_arg="-s"))
+        results.append(IpcCleanupResult(key="", kind="sem", ok=True, detail="skipped_unverifiable"))
         return results
 
     def _cleanup_ipc_kind(self, *, kind: str, ipcs_arg: str, ipcrm_arg: str) -> list[IpcCleanupResult]:

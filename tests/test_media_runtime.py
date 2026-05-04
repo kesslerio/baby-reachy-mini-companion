@@ -36,8 +36,8 @@ def test_prepare_for_audio_start_releases_daemon_media(monkeypatch) -> None:
     assert [call.rsplit("/", 1)[-1] for call in calls] == ["release", "stop_sound"]
 
 
-def test_stale_ipc_cleanup_removes_only_known_unattached_objects(monkeypatch) -> None:
-    """Cleanup removes known Reachy IPC keys only when shared memory is unattached."""
+def test_stale_ipc_cleanup_removes_only_known_unattached_shared_memory(monkeypatch) -> None:
+    """Cleanup removes only known unattached shared memory and skips semaphores."""
     commands: list[list[str]] = []
 
     def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -52,19 +52,6 @@ def test_stale_ipc_cleanup_removes_only_known_unattached_objects(monkeypatch) ->
                         "0x00001091 1          pollen     600        4096       0",
                         "0x00001092 2          pollen     600        4096       1",
                         "0x00009999 3          pollen     600        4096       0",
-                    ]
-                ),
-                stderr="",
-            )
-        if command == ["ipcs", "-s"]:
-            return subprocess.CompletedProcess(
-                command,
-                0,
-                stdout="\n".join(
-                    [
-                        "key        semid      owner      perms      nsems",
-                        "0x00001094 4          pollen     600        1",
-                        "0x00009999 5          pollen     600        1",
                     ]
                 ),
                 stderr="",
@@ -84,8 +71,10 @@ def test_stale_ipc_cleanup_removes_only_known_unattached_objects(monkeypatch) ->
     assert ["ipcrm", "-m", "1"] in commands
     assert ["ipcrm", "-m", "2"] not in commands
     assert ["ipcrm", "-m", "3"] not in commands
-    assert ["ipcrm", "-s", "4"] in commands
-    assert ["ipcrm", "-s", "5"] not in commands
+    assert ["ipcs", "-s"] not in commands
+    assert not any(command[:2] == ["ipcrm", "-s"] for command in commands)
+    assert status.ipc_results[-1].kind == "sem"
+    assert status.ipc_results[-1].detail == "skipped_unverifiable"
 
 
 def test_missing_ipc_tools_degrades_to_noop(monkeypatch) -> None:
