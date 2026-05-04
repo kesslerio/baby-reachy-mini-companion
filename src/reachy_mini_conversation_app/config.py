@@ -28,6 +28,12 @@ class Config:
     LOCAL_STT_MODEL = os.getenv("LOCAL_STT_MODEL", "small.en")
     HF_TOKEN = os.getenv("HF_TOKEN")  # Optional, falls back to hf auth login if not set
 
+    VOICE_FRONTEND = os.getenv("VOICE_FRONTEND", "local").strip().lower()
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-live-preview").strip()
+    GEMINI_VOICE = os.getenv("GEMINI_VOICE", "Kore").strip()
+    GEMINI_SYSTEM_INSTRUCTION = os.getenv("GEMINI_SYSTEM_INSTRUCTION", "").strip()
+
     logger.debug(f"HF_HOME: {HF_HOME}, LLM Model: {LOCAL_LLM_MODEL}")
 
     REACHY_MINI_CUSTOM_PROFILE = os.getenv("REACHY_MINI_CUSTOM_PROFILE")
