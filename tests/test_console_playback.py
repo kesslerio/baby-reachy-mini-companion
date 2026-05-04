@@ -51,3 +51,27 @@ def test_play_loop_tolerates_unavailable_output_sample_rate() -> None:
         np.testing.assert_allclose(media.pushed[0], audio)
 
     asyncio.run(run_test())
+
+
+def test_play_loop_drops_invalid_input_sample_rate() -> None:
+    """Playback skips frames that cannot be resampled safely."""
+
+    async def run_test() -> None:
+        audio = np.array([0.0, 0.25, -0.25], dtype=np.float32)
+        handler = _FakeHandler((0, audio))
+        media = _FakeMedia()
+        robot = SimpleNamespace(media=media)
+        stream = LocalStream(handler, robot)
+        original_emit = handler.emit
+
+        async def emit_once():
+            stream._stop_event.set()
+            return await original_emit()
+
+        handler.emit = emit_once
+
+        await stream.play_loop()
+
+        assert media.pushed == []
+
+    asyncio.run(run_test())

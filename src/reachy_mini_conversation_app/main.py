@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import asyncio
+import logging
 import argparse
 import threading
 import webbrowser
@@ -20,6 +21,9 @@ from reachy_mini_conversation_app.utils import (
     log_connection_troubleshooting,
 )
 from reachy_mini_conversation_app.config import config
+
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -208,17 +212,20 @@ class ReachyMiniConversationApp(ReachyMiniApp):
 
 def _load_instance_voice_settings(instance_path: Optional[str]) -> None:
     """Load voice front-end settings before choosing the session handler."""
-    if not instance_path:
-        return
+    env_candidates: list[Path] = []
+    if instance_path:
+        env_candidates.append(Path(instance_path) / ".env")
+    env_candidates.append(Path(__file__).parent / ".env")
 
-    env_path = Path(instance_path) / ".env"
-    if not env_path.exists():
+    env_path = next((path for path in env_candidates if path.exists()), None)
+    if env_path is None:
         return
 
     try:
         from dotenv import load_dotenv
 
         load_dotenv(dotenv_path=str(env_path), override=True)
+        logger.info("Loaded voice settings from %s", env_path)
     except Exception:
         return
 
