@@ -63,6 +63,7 @@ class LocalLLM:
                 "tools": tools,
                 "stream": True,
                 "parallel_tool_calls": False,
+                "reasoning_effort": "none",
             }
             stream: Any = await self.client.chat.completions.create(**create_kwargs)
 
