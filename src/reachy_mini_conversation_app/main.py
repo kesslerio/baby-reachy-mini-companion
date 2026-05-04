@@ -45,6 +45,10 @@ def run(
     logger = setup_logger(args.debug)
     logger.info("Starting Reachy Mini Conversation App")
 
+    if args.dashboard and settings_app is None and instance_path is None:
+        instance_path = str(Path.cwd())
+    _load_instance_voice_settings(instance_path)
+
     if robot is None:
         try:
             robot_kwargs = {}
@@ -90,13 +94,9 @@ def run(
         vision_threat_status=vision_threat_status,
     )
 
-    _load_instance_voice_settings(instance_path)
-
     # Launch a standalone settings dashboard when --dashboard is passed
     if args.dashboard and settings_app is None:
         settings_app = FastAPI(title="Reachy Mini Settings")
-        if instance_path is None:
-            instance_path = str(Path.cwd())
 
     if config.VOICE_FRONTEND == "gemini_live":
         from reachy_mini_conversation_app.gemini_live.handler import GeminiLiveSessionHandler
@@ -231,10 +231,19 @@ def _load_instance_voice_settings(instance_path: Optional[str]) -> None:
         "LOCAL_LLM_URL",
         "LOCAL_LLM_MODEL",
         "LOCAL_LLM_API_KEY",
+        "LOCAL_STT_MODEL",
+        "SIGNAL_USER_PHONE",
     ):
         value = os.getenv(key)
         if value is not None:
             setattr(config, key, value.strip())
+
+    mic_gain = os.getenv("MIC_GAIN")
+    if mic_gain is not None:
+        try:
+            config.MIC_GAIN = float(mic_gain.strip())
+        except ValueError:
+            pass
 
 
 if __name__ == "__main__":
