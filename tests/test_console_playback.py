@@ -17,11 +17,12 @@ class _FakeHandler:
 
 
 class _FakeMedia:
-    def __init__(self) -> None:
+    def __init__(self, output_sample_rate: int = 0) -> None:
         self.pushed: list[np.ndarray] = []
+        self.output_sample_rate = output_sample_rate
 
     def get_output_audio_samplerate(self) -> int:
-        return 0
+        return self.output_sample_rate
 
     def push_audio_sample(self, audio_frame: np.ndarray) -> None:
         self.pushed.append(audio_frame)
@@ -60,6 +61,29 @@ def test_play_loop_drops_invalid_input_sample_rate() -> None:
         audio = np.array([0.0, 0.25, -0.25], dtype=np.float32)
         handler = _FakeHandler((0, audio))
         media = _FakeMedia()
+        robot = SimpleNamespace(media=media)
+        stream = LocalStream(handler, robot)
+        original_emit = handler.emit
+
+        async def emit_once():
+            stream._stop_event.set()
+            return await original_emit()
+
+        handler.emit = emit_once
+
+        await stream.play_loop()
+
+        assert media.pushed == []
+
+    asyncio.run(run_test())
+
+
+def test_play_loop_drops_tiny_resample_frames() -> None:
+    """Playback skips frames that would resample to zero output samples."""
+
+    async def run_test() -> None:
+        handler = _FakeHandler((24_000, np.array([0.25], dtype=np.float32)))
+        media = _FakeMedia(output_sample_rate=16_000)
         robot = SimpleNamespace(media=media)
         stream = LocalStream(handler, robot)
         original_emit = handler.emit

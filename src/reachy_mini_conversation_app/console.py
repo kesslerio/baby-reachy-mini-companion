@@ -779,9 +779,18 @@ class LocalStream:
 
                 # Resample if needed
                 if input_sample_rate != output_sample_rate:
+                    output_frame_count = int(len(audio_frame) * output_sample_rate / input_sample_rate)
+                    if output_frame_count <= 0:
+                        logger.warning(
+                            "Dropping audio frame too short to resample: len=%s input_rate=%s output_rate=%s",
+                            len(audio_frame),
+                            input_sample_rate,
+                            output_sample_rate,
+                        )
+                        continue
                     audio_frame = resample(
                         audio_frame,
-                        int(len(audio_frame) * output_sample_rate / input_sample_rate),
+                        output_frame_count,
                     )
 
                 self._robot.media.push_audio_sample(audio_frame)
