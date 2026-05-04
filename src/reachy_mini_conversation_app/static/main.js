@@ -352,7 +352,7 @@ async function init() {
         });
         const data = await resp.json();
         testMicStatus.textContent = data.message;
-        testMicStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "too_quiet" ? "warn" : "error");
+        testMicStatus.className = "status " + (data.verdict === "ok" || data.verdict === "sdk_audio" ? "ok" : data.verdict === "too_quiet" ? "warn" : "error");
       } catch (e) {
         testMicStatus.textContent = "Test failed: " + e.message;
         testMicStatus.className = "status error";
