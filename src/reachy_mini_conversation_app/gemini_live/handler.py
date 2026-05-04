@@ -4,6 +4,7 @@ import base64
 import asyncio
 import logging
 from typing import Any, Final, Tuple, Literal
+from dataclasses import replace
 
 import numpy as np
 
@@ -266,15 +267,15 @@ class GeminiLiveSessionHandler(LocalSessionHandler):
 
         async with self._tool_loop_lock:
             speech_sink = GeminiSpeechSink()
-            previous_speak_func = self.deps.speak_func
-            previous_speech_sink = tool_loop.speech_sink
-            self.deps.speak_func = speech_sink.speak
-            tool_loop.speech_sink = speech_sink
-            try:
-                return await tool_loop.run(query)
-            finally:
-                self.deps.speak_func = previous_speak_func
-                tool_loop.speech_sink = previous_speech_sink
+            utterance_loop = ConversationToolLoop(
+                llm=tool_loop.llm,
+                deps=replace(self.deps, speak_func=speech_sink.speak),
+                tool_specs=tool_loop.tool_specs,
+                dispatch_tool_call=tool_loop.dispatch_tool_call,
+                speech_sink=speech_sink,
+                max_turns=tool_loop.max_turns,
+            )
+            return await utterance_loop.run(query)
 
     async def _ignore_background_speech_tool(self, text: str) -> None:
         logger.info("Ignoring background speak tool text while Gemini owns voice output: %d chars", len(text))
