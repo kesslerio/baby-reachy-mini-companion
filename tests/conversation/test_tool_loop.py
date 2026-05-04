@@ -111,3 +111,39 @@ async def test_tool_loop_uses_speech_sink_when_tool_call_has_no_final_text() -> 
 
     assert result.text == "Five plus ten is fifteen."
     assert sink.messages == []
+
+
+@pytest.mark.asyncio
+async def test_tool_loop_prefers_captured_speech_over_generic_follow_up_text() -> None:
+    """Speak-tool text wins over generic tool follow-up text."""
+    sink = GeminiSpeechSink()
+    llm = FakeLLM(
+        [
+            [
+                {
+                    "type": "tool_call",
+                    "tool_call": {
+                        "id": "call_1",
+                        "function": {"name": "speak", "arguments": '{"text":"Five plus ten is fifteen."}'},
+                    },
+                }
+            ],
+            [{"type": "text", "content": "I said it."}],
+        ]
+    )
+
+    async def dispatch_tool_call(name: str, args: str, deps: object) -> dict[str, Any]:
+        await sink.speak("Five plus ten is fifteen.")
+        return {"status": "success", "message": "Spoke: Five plus ten is fifteen."}
+
+    loop = ConversationToolLoop(
+        llm=llm,
+        deps=object(),
+        tool_specs=[],
+        dispatch_tool_call=dispatch_tool_call,
+        speech_sink=sink,
+    )
+
+    result = await loop.run("what is five plus ten")
+
+    assert result.text == "Five plus ten is fifteen."

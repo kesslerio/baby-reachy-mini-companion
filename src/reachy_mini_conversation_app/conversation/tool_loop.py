@@ -103,10 +103,10 @@ class ConversationToolLoop:
                 tool_outputs.append({"role": "tool", "content": result_text, "tool_call_id": call_id})
                 logger.info("Tool result: %s", result_text)
 
-        if not final_text and self.speech_sink is not None:
-            final_text = " ".join(self.speech_sink.drain()).strip()
-        elif self.speech_sink is not None:
-            self.speech_sink.drain()
+        if self.speech_sink is not None:
+            captured_speech = " ".join(self.speech_sink.drain()).strip()
+            if captured_speech:
+                final_text = captured_speech
 
         if not final_text:
             final_text = "I handled that, but I do not have anything else to say."
