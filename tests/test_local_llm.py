@@ -30,7 +30,10 @@ async def test_local_llm_disables_reasoning_for_openai_compatible_chat(monkeypat
     monkeypatch.setattr(llm_module, "AsyncOpenAI", _FakeClient)
 
     client = llm_module.LocalLLM(base_url="http://127.0.0.1:11435/v1", model="reachy-companion", api_key="sidecar")
-    async for _event in client.chat_stream(user_text="hello", tools=[]):
+    tools = [{"type": "function", "function": {"name": "move_head"}}]
+    async for _event in client.chat_stream(user_text="hello", tools=tools):
         pass
 
     assert captured["reasoning_effort"] == "none"
+    assert captured["tools"] == tools
+    assert captured["parallel_tool_calls"] is False

@@ -265,6 +265,12 @@ The settings dashboard provides a **microphone selector** that offers two approa
 
 When you select a specific microphone in the dashboard, the app opens it directly with `sounddevice.InputStream`, bypassing the SDK's audio layer entirely. This avoids the USB device sharing issue on macOS.
 
+When launched as a Reachy Mini App on the robot, keep the selector on **Reachy
+SDK audio (recommended)**. At pipeline start the app releases daemon-held audio
+media, clears stale unattached Reachy ALSA IPC objects when present, and then
+starts SDK recording/playback. Numeric direct-input selections are session-only
+diagnostics and are not persisted across restarts.
+
 ### Starting the Daemon
 
 #### As a Reachy Mini App (recommended)
@@ -274,7 +280,7 @@ When installed as a Reachy Mini App (via the `reachy_mini_apps` entry point), th
 In this mode:
 
 1. The app serves a settings UI at its `custom_app_url` (`http://0.0.0.0:7860/`).
-2. The pipeline **waits** for you to configure LLM settings, select a microphone, and click **Start**.
+2. The pipeline **waits** for you to configure LLM settings, leave the microphone on SDK audio, and click **Start**.
 3. Once running, the settings page shows the active model and provides access to the personality studio.
 
 No `.env` file is needed — all configuration happens through the browser.

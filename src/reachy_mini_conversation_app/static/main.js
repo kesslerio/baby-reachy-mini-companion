@@ -291,17 +291,18 @@ async function init() {
       if (devResp.ok) {
         const devData = await devResp.json();
         micDeviceSelect.innerHTML = "";
+        const sdkOpt = document.createElement("option");
+        sdkOpt.value = "";
+        sdkOpt.textContent = "Reachy SDK audio (recommended)";
+        micDeviceSelect.appendChild(sdkOpt);
         for (const d of devData.devices) {
           const opt = document.createElement("option");
           opt.value = d.index;
-          opt.textContent = `[${d.index}] ${d.name} (${d.channels}ch, ${d.samplerate}Hz)`;
+          opt.textContent = `Direct input: [${d.index}] ${d.name} (${d.channels}ch, ${d.samplerate}Hz)`;
           if (d.is_default) opt.textContent += " - Default";
           micDeviceSelect.appendChild(opt);
         }
-        // Pre-select the default input device
-        if (devData.default != null) {
-          micDeviceSelect.value = devData.default;
-        }
+        micDeviceSelect.value = "";
       }
     } catch {}
 
@@ -351,7 +352,7 @@ async function init() {
         });
         const data = await resp.json();
         testMicStatus.textContent = data.message;
-        testMicStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "too_quiet" ? "warn" : "error");
+        testMicStatus.className = "status " + (data.verdict === "ok" || data.verdict === "sdk_audio" ? "ok" : data.verdict === "too_quiet" ? "warn" : "error");
       } catch (e) {
         testMicStatus.textContent = "Test failed: " + e.message;
         testMicStatus.className = "status error";
