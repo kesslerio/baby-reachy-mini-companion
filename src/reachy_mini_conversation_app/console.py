@@ -752,6 +752,13 @@ class LocalStream:
             elif isinstance(handler_output, tuple):
                 input_sample_rate, audio_data = handler_output
                 output_sample_rate = self._robot.media.get_output_audio_samplerate()
+                if output_sample_rate <= 0:
+                    logger.warning(
+                        "Invalid output audio sample rate %s; using handler sample rate %s",
+                        output_sample_rate,
+                        input_sample_rate,
+                    )
+                    output_sample_rate = input_sample_rate
 
                 # Reshape if needed
                 if audio_data.ndim == 2:
